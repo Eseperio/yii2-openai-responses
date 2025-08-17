@@ -1,0 +1,8 @@
+actor: FunctionalTester
+bootstrap: _bootstrap.php
+modules:
+  enabled:
+    - Yii2:
+        configFile: tests/config/web.php
+    - Asserts
+    - tests\Helper\Functional

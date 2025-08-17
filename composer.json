@@ -1,0 +1,38 @@
+{
+    "name": "eseperio/yii2-openai-responses",
+    "description": "Yii2 component wrapper around openai-php client responses API.",
+    "type": "yii2-extension",
+    "license": "MIT",
+    "keywords": ["yii2", "openai", "responses"],
+    "require": {
+        "php": ">=8.1",
+        "yiisoft/yii2": "^2.0.49",
+        "openai-php/client": "^0.15",
+        "symfony/http-client": "^7.3",
+        "yidas/yii2-bower-asset": "^2.0"
+    },
+    "require-dev": {
+        "codeception/codeception": "^5.0",
+        "codeception/module-yii2": "^2.0",
+        "codeception/module-asserts": "^3.0",
+        "yiisoft/yii2-codeception": "^2.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "eseperio\\openai\\responses\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "tests\\": "tests/"
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "config": {
+        "allow-plugins": {
+            "php-http/discovery": true,
+            "yiisoft/yii2-composer": true
+        }
+    }
+}
