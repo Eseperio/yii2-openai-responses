@@ -24,7 +24,7 @@ class OpenAiComponent extends Component
     /**
      * Default model used for requests.
      */
-    public OpenAiModel|string $model = OpenAiModel::GPT_4_1_MINI;
+    public OpenAiModel|string $model = OpenAiModel::GPT_5;
 
     /**
      * Default tools configuration.
