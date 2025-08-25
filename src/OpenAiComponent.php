@@ -96,6 +96,13 @@ class OpenAiComponent extends Component
     }
 
     /**
+     * Default text format for responses.
+     *
+     * @var string|null
+     */
+    public ?string $text_format = null;
+
+    /**
      * Creates a model containing default ask request configuration.
      */
     public function createAskRequest(): AskRequest
@@ -105,6 +112,7 @@ class OpenAiComponent extends Component
         $model->tools = $this->tools;
         $model->metadata = $this->metadata;
         $model->instructions = $this->instructions;
+        $model->text_format = $this->text_format;
 
         return $model;
     }
@@ -117,7 +125,7 @@ class OpenAiComponent extends Component
      * @param array $metadata
      * @return string
      */
-    public function ask($promptOrRequest, ?string $instructions = null, array $metadata = []): string
+    public function ask($promptOrRequest, ?string $instructions = null, array $metadata = [], ?string $textFormat = null): string
     {
         if ($promptOrRequest instanceof AskRequest) {
             $request = $promptOrRequest;
@@ -126,22 +134,23 @@ class OpenAiComponent extends Component
             $request->input = $promptOrRequest;
             $request->instructions = $this->resolveInstructions($instructions);
             $request->metadata = array_merge($this->metadata, $metadata);
+            $request->text_format = $textFormat;
         }
 
         if (!$request->validate()) {
-            throw new InvalidArgumentException('Invalid ask request: '.json_encode($request->getErrors()));
+            throw new InvalidArgumentException('Invalid ask request: ' . json_encode($request->getErrors()));
         }
 
         $params = $request->toRequestArray();
 
         try {
-            Yii::debug('Sending request to OpenAI: '.json_encode($params), __METHOD__);
+            Yii::debug('Sending request to OpenAI: ' . json_encode($params), __METHOD__);
             $this->lastResponse = $this->client->responses()->create($params);
             $output = $this->lastResponse->outputText ?? ($this->lastResponse->output[0]->content[0]->text ?? '');
 
-            return (string) $output;
+            return (string)$output;
         } catch (\Throwable $e) {
-            Yii::error('OpenAI request failed: '.$e->getMessage(), __METHOD__);
+            Yii::error('OpenAI request failed: ' . $e->getMessage(), __METHOD__);
             throw $e;
         }
     }
@@ -178,7 +187,7 @@ class OpenAiComponent extends Component
                 return $default;
             case self::INSTRUCTIONS_COMPLEMENTARY:
                 if ($default && $userInstructions) {
-                    return $default."\n".$userInstructions;
+                    return $default . "\n" . $userInstructions;
                 }
 
                 return $default ?? $userInstructions;
@@ -188,4 +197,3 @@ class OpenAiComponent extends Component
         }
     }
 }
-

@@ -29,6 +29,13 @@ class AskRequest extends Model
     public ?string $instructions = null;
 
     /**
+     * Text format for the response.
+     *
+     * @var string|null
+     */
+    public ?string $text_format = null;
+
+    /**
      * Tools configuration.
      *
      * @var array
@@ -57,7 +64,7 @@ class AskRequest extends Model
         return [
             [['model', 'input'], 'required'],
             ['model', 'validateModel'],
-            [['input', 'instructions', 'previous_response_id'], 'string'],
+            [['input', 'instructions', 'previous_response_id', 'text_format'], 'string'],
             [['tools', 'metadata'], 'validateArray'],
         ];
     }
@@ -105,6 +112,9 @@ class AskRequest extends Model
 
         if ($this->instructions !== null) {
             $data['instructions'] = $this->instructions;
+        }
+        if ($this->text_format !== null) {
+            $data['text_format'] = $this->text_format;
         }
         if (!empty($this->tools)) {
             $data['tools'] = $this->tools;
