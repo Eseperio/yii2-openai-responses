@@ -43,6 +43,13 @@ class AskRequest extends Model
     public array $metadata = [];
 
     /**
+     * Optional previous response ID to continue a conversation.
+     *
+     * @var string|null
+     */
+    public ?string $previous_response_id = null;
+
+    /**
      * {@inheritdoc}
      */
     public function rules(): array
@@ -50,7 +57,7 @@ class AskRequest extends Model
         return [
             [['model', 'input'], 'required'],
             ['model', 'validateModel'],
-            [['input', 'instructions'], 'string'],
+            [['input', 'instructions', 'previous_response_id'], 'string'],
             [['tools', 'metadata'], 'validateArray'],
         ];
     }
@@ -105,8 +112,10 @@ class AskRequest extends Model
         if (!empty($this->metadata)) {
             $data['metadata'] = $this->metadata;
         }
+        if ($this->previous_response_id !== null) {
+            $data['previous_response_id'] = $this->previous_response_id;
+        }
 
         return $data;
     }
 }
-
