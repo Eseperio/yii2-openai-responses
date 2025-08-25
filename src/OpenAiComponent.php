@@ -66,7 +66,7 @@ class OpenAiComponent extends Component
     /**
      * @var object|null
      */
-    private $lastResponse;
+    protected $lastResponse;
 
     /**
      * {@inheritdoc}
