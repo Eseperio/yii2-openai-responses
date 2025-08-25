@@ -20,7 +20,7 @@ return [
         'openai' => [
             'class' => eseperio\openai\responses\OpenAiComponent::class,
             'apiKey' => 'YOUR_API_KEY',
-            'model' => eseperio\openai\responses\models\OpenAiModel::GPT_4_1_MINI,
+            'model' => eseperio\openai\responses\enums\OpenAiModel::GPT_4_1_MINI,
             // optional defaults
             'instructions' => 'Always answer politely.',
             'instructionsPolicy' => eseperio\openai\responses\OpenAiComponent::INSTRUCTIONS_COMPLEMENTARY,
@@ -65,7 +65,7 @@ To override default configuration for a single call, create an `AskRequest` mode
 
 ```php
 $request = Yii::$app->openai->createAskRequest();
-$request->model = eseperio\\openai\\responses\\models\\OpenAiModel::GPT_4_1;
+$request->model = eseperio\\openai\\responses\\enums\\OpenAiModel::GPT_4_1;
 $request->input = 'Explain gravity.';
 $request->instructions = 'Use simple terms.';
 

@@ -1,5 +1,5 @@
 <?php
-namespace eseperio\openai\responses\models;
+namespace eseperio\openai\responses\enums;
 
 enum OpenAiModel: string
 {

@@ -2,6 +2,10 @@
 
 namespace eseperio\openai\responses\models;
 
+use eseperio\openai\responses\enums\OpenAiModel;
+use eseperio\openai\responses\enums\ResponseFormats;
+use OpenAI\Responses\Responses\Format\JsonObjectFormat;
+use OpenAI\Responses\Responses\Format\TextFormat;
 use yii\base\Model;
 
 /**
@@ -29,11 +33,11 @@ class AskRequest extends Model
     public ?string $instructions = null;
 
     /**
-     * Text format for the response.
+     * the class name of the supported format for the response.
      *
-     * @var string|null
+     * @var ResponseFormats
      */
-    public ?string $text_format = null;
+    public ResponseFormats $response_format = ResponseFormats::TEXT;
 
     /**
      * Tools configuration.
@@ -64,8 +68,13 @@ class AskRequest extends Model
         return [
             [['model', 'input'], 'required'],
             ['model', 'validateModel'],
-            [['input', 'instructions', 'previous_response_id', 'text_format'], 'string'],
+            [['input', 'instructions', 'previous_response_id'], 'string'],
             [['tools', 'metadata'], 'validateArray'],
+            ['response_format', 'in',
+                'range' => ResponseFormats::cases(),
+                'message' => 'Invalid response format selected.'
+            ],
+
         ];
     }
 
@@ -81,8 +90,8 @@ class AskRequest extends Model
         $valid = array_map(static fn(OpenAiModel $m) => $m->value, OpenAiModel::cases());
         if (!in_array($this->model, $valid, true)) {
             $error = 'Invalid OpenAI model selected.';
-            if(YII_ENV_DEV || YII_ENV_TEST){
-                $error .=" Model selected was: {$this->model}. Valid options are: ".implode(", ", $valid).".";
+            if (YII_ENV_DEV || YII_ENV_TEST) {
+                $error .= " Model selected was: {$this->model}. Valid options are: " . implode(", ", $valid) . ".";
             }
             $this->addError('model', $error);
         }
@@ -94,7 +103,7 @@ class AskRequest extends Model
     public function validateArray(string $attribute): void
     {
         if (!is_array($this->$attribute)) {
-            $this->addError($attribute, ucfirst($attribute).' must be an array.');
+            $this->addError($attribute, ucfirst($attribute) . ' must be an array.');
         }
     }
 
@@ -108,13 +117,13 @@ class AskRequest extends Model
         $data = [
             'model' => $model,
             'input' => $this->input,
+            'text' => [
+                'format'=> $this->response_format->makeFormat()
+            ],
         ];
 
         if ($this->instructions !== null) {
             $data['instructions'] = $this->instructions;
-        }
-        if ($this->text_format !== null) {
-            $data['text_format'] = $this->text_format;
         }
         if (!empty($this->tools)) {
             $data['tools'] = $this->tools;

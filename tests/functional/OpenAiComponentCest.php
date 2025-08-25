@@ -1,10 +1,10 @@
 <?php
 namespace tests\functional;
 
+use eseperio\openai\responses\enums\OpenAiModel;
 use eseperio\openai\responses\OpenAiComponent;
-use eseperio\openai\responses\models\OpenAiModel;
-use Yii;
 use tests\FunctionalTester;
+use Yii;
 
 class OpenAiComponentCest
 {

@@ -2,8 +2,8 @@
 
 namespace eseperio\openai\responses;
 
+use eseperio\openai\responses\enums\OpenAiModel;
 use eseperio\openai\responses\models\AskRequest;
-use eseperio\openai\responses\models\OpenAiModel;
 use InvalidArgumentException;
 use OpenAI;
 use Yii;
@@ -96,13 +96,6 @@ class OpenAiComponent extends Component
     }
 
     /**
-     * Default text format for responses.
-     *
-     * @var string|null
-     */
-    public ?string $text_format = null;
-
-    /**
      * Creates a model containing default ask request configuration.
      */
     public function createAskRequest(): AskRequest
@@ -112,7 +105,6 @@ class OpenAiComponent extends Component
         $model->tools = $this->tools;
         $model->metadata = $this->metadata;
         $model->instructions = $this->instructions;
-        $model->text_format = $this->text_format;
 
         return $model;
     }
@@ -124,8 +116,10 @@ class OpenAiComponent extends Component
      * @param string|null $instructions
      * @param array $metadata
      * @return string
+     * @throws \Throwable
+     * @throws \Throwable
      */
-    public function ask($promptOrRequest, ?string $instructions = null, array $metadata = [], ?string $textFormat = null): string
+    public function ask($promptOrRequest, ?string $instructions = null, array $metadata = []): string
     {
         if ($promptOrRequest instanceof AskRequest) {
             $request = $promptOrRequest;
@@ -134,7 +128,6 @@ class OpenAiComponent extends Component
             $request->input = $promptOrRequest;
             $request->instructions = $this->resolveInstructions($instructions);
             $request->metadata = array_merge($this->metadata, $metadata);
-            $request->text_format = $textFormat;
         }
 
         if (!$request->validate()) {
