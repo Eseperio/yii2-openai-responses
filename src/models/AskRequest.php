@@ -19,7 +19,7 @@ class AskRequest extends Model
      *
      * @var string
      */
-    public string $input;
+    public string $input = "";
 
     /**
      * Instructions for the model.
@@ -66,7 +66,11 @@ class AskRequest extends Model
 
         $valid = array_map(static fn(OpenAiModel $m) => $m->value, OpenAiModel::cases());
         if (!in_array($this->model, $valid, true)) {
-            $this->addError('model', 'Invalid model.');
+            $error = 'Invalid OpenAI model selected.';
+            if(YII_ENV_DEV || YII_ENV_TEST){
+                $error .=" Model selected was: {$this->model}. Valid options are: ".implode(", ", $valid).".";
+            }
+            $this->addError('model', $error);
         }
     }
 
