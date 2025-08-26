@@ -8,10 +8,9 @@ use InvalidArgumentException;
 use OpenAI;
 use Yii;
 use yii\base\Component;
+// Add AiRequest model import
+use app\modules\ai\models\AiRequest;
 
-/**
- * Component wrapping the OpenAI responses API.
- */
 class OpenAiComponent extends Component
 {
     /**
@@ -136,10 +135,24 @@ class OpenAiComponent extends Component
 
         $params = $request->toRequestArray();
 
+        // Compute a deterministic hash of the request payload
+        $requestHash = $this->computeRequestHash($params);
+
+        // Try to serve from cache
+        if (($cached = $this->findCachedResponse($requestHash)) !== null) {
+            $this->lastResponse = $cached; // Keep lastResponse for transparency
+            $output = $this->extractOutputText($cached);
+
+            return (string)$output;
+        }
+
         try {
             Yii::debug('Sending request to OpenAI: ' . json_encode($params), __METHOD__);
             $this->lastResponse = $this->client->responses()->create($params);
-            $output = $this->lastResponse->outputText ?? ($this->lastResponse->output[0]->content[0]->text ?? '');
+            $output = $this->extractOutputText($this->lastResponse);
+
+            // Persist only if a response was received
+            $this->persistAiRequest($params, $this->lastResponse, $requestHash);
 
             return (string)$output;
         } catch (\Throwable $e) {
@@ -188,5 +201,153 @@ class OpenAiComponent extends Component
             default:
                 return $userInstructions ?? $default;
         }
+    }
+
+    /**
+     * Persist the AiRequest record only when a response was received.
+     */
+    private function persistAiRequest(array $params, $response, string $requestHash): void
+    {
+        if ($response === null) {
+            return;
+        }
+
+        try {
+            // Normalize response to array
+            $responseArray = is_object($response) && method_exists($response, 'toArray')
+                ? $response->toArray()
+                : json_decode(json_encode($response, JSON_UNESCAPED_UNICODE), true);
+
+            $aiRequest = new AiRequest();
+            $aiRequest->request_json = $params;
+            $aiRequest->response_json = $responseArray;
+            $aiRequest->request_hash = $requestHash;
+
+            if (!$aiRequest->save()) {
+                Yii::error('Failed saving AiRequest: ' . json_encode($aiRequest->getErrors()), __METHOD__);
+            }
+        } catch (\Throwable $e) {
+            Yii::error('Exception while saving AiRequest: ' . $e->getMessage(), __METHOD__);
+        }
+    }
+
+    /**
+     * Compute a deterministic hash for the given request payload.
+     */
+    private function computeRequestHash(array $params): string
+    {
+        $normalized = $this->normalizePayload($params);
+        return hash('sha256', json_encode($normalized, JSON_UNESCAPED_UNICODE));
+    }
+
+    /**
+     * Recursively sort array keys to produce a stable representation.
+     */
+    private function normalizePayload($data)
+    {
+        if (is_array($data)) {
+            // Separate associative and numeric arrays to keep list order
+            if (array_values($data) === $data) {
+                // Indexed array: normalize each item but preserve order
+                return array_map([$this, 'normalizePayload'], $data);
+            }
+            // Associative array: sort keys
+            ksort($data);
+            foreach ($data as $k => $v) {
+                $data[$k] = $this->normalizePayload($v);
+            }
+            return $data;
+        }
+        return $data;
+    }
+
+    /**
+     * Try to find a cached response by its request hash within the TTL window.
+     *
+     * @return array|null Returns the response_json payload or null.
+     */
+    private function findCachedResponse(string $requestHash): ?array
+    {
+        try {
+            $ttl = $this->getRequestCacheTtlSeconds();
+            if ($ttl <= 0) {
+                // Cache disabled by configuration
+                return null;
+            }
+
+            $minCreatedAt = time() - $ttl;
+
+            $record = AiRequest::find()
+                ->where(['request_hash' => $requestHash])
+                ->andWhere(['>=', 'created_at', $minCreatedAt])
+                ->orderBy(['id' => SORT_DESC])
+                ->one();
+
+            if ($record && !empty($record->response_json)) {
+                return is_array($record->response_json)
+                    ? $record->response_json
+                    : json_decode((string)$record->response_json, true);
+            }
+        } catch (\Throwable $e) {
+            Yii::error('Error while reading AiRequest cache: ' . $e->getMessage(), __METHOD__);
+        }
+
+        return null;
+    }
+
+    /**
+     * Extract output text from either an SDK response object or an array payload.
+     */
+    private function extractOutputText($response): string
+    {
+        // Object responses (SDK)
+        if (is_object($response)) {
+            if (isset($response->outputText) && is_string($response->outputText)) {
+                return (string)$response->outputText;
+            }
+            if (isset($response->output) && is_array($response->output)) {
+                $first = $response->output[0] ?? null;
+                if (is_object($first) && isset($first->content) && is_array($first->content)) {
+                    $firstContent = $first->content[0] ?? null;
+                    if (is_object($firstContent) && isset($firstContent->text)) {
+                        return (string)$firstContent->text;
+                    }
+                }
+            }
+        }
+
+        // Array responses (stored JSON)
+        if (is_array($response)) {
+            if (isset($response['outputText']) && is_string($response['outputText'])) {
+                return (string)$response['outputText'];
+            }
+            if (isset($response['output'][0]['content'][0]['text'])) {
+                return (string)$response['output'][0]['content'][0]['text'];
+            }
+        }
+
+        // Fallback: stringify minimal info
+        return '';
+    }
+
+    /**
+     * Get request cache TTL (in seconds) from the AI module. Defaults to 24h (86400s).
+     */
+    private function getRequestCacheTtlSeconds(): int
+    {
+        $default = 86400;
+        try {
+            $module = Yii::$app->getModule('ai');
+            if ($module !== null && property_exists($module, 'requestCacheTtlSeconds')) {
+                $value = $module->requestCacheTtlSeconds;
+                if (is_numeric($value)) {
+                    return max(0, (int)$value);
+                }
+            }
+        } catch (\Throwable $e) {
+            Yii::warning('Unable to read requestCacheTtlSeconds from module: ' . $e->getMessage(), __METHOD__);
+        }
+
+        return $default;
     }
 }
