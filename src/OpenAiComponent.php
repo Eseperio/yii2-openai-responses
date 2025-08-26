@@ -10,6 +10,7 @@ use Yii;
 use yii\base\Component;
 // Add AiRequest model import
 use app\modules\ai\models\AiRequest;
+use yii\web\Application;
 
 class OpenAiComponent extends Component
 {
@@ -300,8 +301,14 @@ class OpenAiComponent extends Component
      */
     private function extractOutputText($response): string
     {
-        // Object responses (SDK)
+        // Normalize SDK object responses to array and reuse array extractor
         if (is_object($response)) {
+            if (method_exists($response, 'toArray')) {
+                $asArray = $response->toArray();
+                return $this->extractTextFromArray($asArray);
+            }
+
+            // Legacy object properties fallback
             if (isset($response->outputText) && is_string($response->outputText)) {
                 return (string)$response->outputText;
             }
@@ -309,24 +316,73 @@ class OpenAiComponent extends Component
                 $first = $response->output[0] ?? null;
                 if (is_object($first) && isset($first->content) && is_array($first->content)) {
                     $firstContent = $first->content[0] ?? null;
-                    if (is_object($firstContent) && isset($firstContent->text)) {
-                        return (string)$firstContent->text;
+                    if (is_object($firstContent)) {
+                        if (isset($firstContent->text) && is_string($firstContent->text)) {
+                            return (string)$firstContent->text;
+                        }
+                        if (isset($firstContent->text) && is_object($firstContent->text) && isset($firstContent->text->value)) {
+                            return (string)$firstContent->text->value;
+                        }
                     }
                 }
             }
         }
 
-        // Array responses (stored JSON)
         if (is_array($response)) {
-            if (isset($response['outputText']) && is_string($response['outputText'])) {
-                return (string)$response['outputText'];
-            }
-            if (isset($response['output'][0]['content'][0]['text'])) {
-                return (string)$response['output'][0]['content'][0]['text'];
+            return $this->extractTextFromArray($response);
+        }
+
+        // Fallback
+        return '';
+    }
+
+    /**
+     * Extract output text from a response array supporting multiple shapes.
+     */
+    private function extractTextFromArray(array $response): string
+    {
+        // Direct convenience property
+        if (isset($response['outputText']) && is_string($response['outputText'])) {
+            return (string)$response['outputText'];
+        }
+        if (isset($response['output_text']) && is_string($response['output_text'])) {
+            return (string)$response['output_text'];
+        }
+
+        // Responses API typical shape: output[0].content[*].text
+        if (isset($response['output'][0]['content']) && is_array($response['output'][0]['content'])) {
+            foreach ($response['output'][0]['content'] as $content) {
+                // text as string
+                if (is_array($content) && isset($content['text']) && is_string($content['text'])) {
+                    return (string)$content['text'];
+                }
+                // text as object with value key
+                if (is_array($content) && isset($content['text']) && is_array($content['text']) && isset($content['text']['value'])) {
+                    return (string)$content['text']['value'];
+                }
+                // message.content (OpenAI chat-like)
+                if (is_array($content) && isset($content['message']['content']) && is_string($content['message']['content'])) {
+                    return (string)$content['message']['content'];
+                }
             }
         }
 
-        // Fallback: stringify minimal info
+        // Common chat completion shapes
+        if (isset($response['choices'][0]['message']['content']) && is_string($response['choices'][0]['message']['content'])) {
+            return (string)$response['choices'][0]['message']['content'];
+        }
+        if (isset($response['choices'][0]['text']) && is_string($response['choices'][0]['text'])) {
+            return (string)$response['choices'][0]['text'];
+        }
+
+        // Another possible top-level content shape
+        if (isset($response['content'][0]['text']) && is_string($response['content'][0]['text'])) {
+            return (string)$response['content'][0]['text'];
+        }
+        if (isset($response['content'][0]['text']['value']) && is_string($response['content'][0]['text']['value'])) {
+            return (string)$response['content'][0]['text']['value'];
+        }
+
         return '';
     }
 
