@@ -152,9 +152,6 @@ class OpenAiComponent extends Component
             $this->lastResponse = $this->client->responses()->create($params);
             $output = $this->extractOutputText($this->lastResponse);
 
-            // Persist only if a response was received
-            $this->persistAiRequest($params, $this->lastResponse, $requestHash);
-
             return (string)$output;
         } catch (\Throwable $e) {
             Yii::error('OpenAI request failed: ' . $e->getMessage(), __METHOD__);
@@ -201,34 +198,6 @@ class OpenAiComponent extends Component
             case self::INSTRUCTIONS_OPTIONAL:
             default:
                 return $userInstructions ?? $default;
-        }
-    }
-
-    /**
-     * Persist the AiRequest record only when a response was received.
-     */
-    private function persistAiRequest(array $params, $response, string $requestHash): void
-    {
-        if ($response === null) {
-            return;
-        }
-
-        try {
-            // Normalize response to array
-            $responseArray = is_object($response) && method_exists($response, 'toArray')
-                ? $response->toArray()
-                : json_decode(json_encode($response, JSON_UNESCAPED_UNICODE), true);
-
-            $aiRequest = new AiRequest();
-            $aiRequest->request_json = $params;
-            $aiRequest->response_json = $responseArray;
-            $aiRequest->request_hash = $requestHash;
-
-            if (!$aiRequest->save()) {
-                Yii::error('Failed saving AiRequest: ' . json_encode($aiRequest->getErrors()), __METHOD__);
-            }
-        } catch (\Throwable $e) {
-            Yii::error('Exception while saving AiRequest: ' . $e->getMessage(), __METHOD__);
         }
     }
 
