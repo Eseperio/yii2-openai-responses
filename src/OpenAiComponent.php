@@ -136,17 +136,6 @@ class OpenAiComponent extends Component
 
         $params = $request->toRequestArray();
 
-        // Compute a deterministic hash of the request payload
-        $requestHash = $this->computeRequestHash($params);
-
-        // Try to serve from cache
-        if (($cached = $this->findCachedResponse($requestHash)) !== null) {
-            $this->lastResponse = $cached; // Keep lastResponse for transparency
-            $output = $this->extractOutputText($cached);
-
-            return (string)$output;
-        }
-
         try {
             Yii::debug('Sending request to OpenAI: ' . json_encode($params), __METHOD__);
             $this->lastResponse = $this->client->responses()->create($params);
@@ -199,70 +188,6 @@ class OpenAiComponent extends Component
             default:
                 return $userInstructions ?? $default;
         }
-    }
-
-    /**
-     * Compute a deterministic hash for the given request payload.
-     */
-    private function computeRequestHash(array $params): string
-    {
-        $normalized = $this->normalizePayload($params);
-        return hash('sha256', json_encode($normalized, JSON_UNESCAPED_UNICODE));
-    }
-
-    /**
-     * Recursively sort array keys to produce a stable representation.
-     */
-    private function normalizePayload($data)
-    {
-        if (is_array($data)) {
-            // Separate associative and numeric arrays to keep list order
-            if (array_values($data) === $data) {
-                // Indexed array: normalize each item but preserve order
-                return array_map([$this, 'normalizePayload'], $data);
-            }
-            // Associative array: sort keys
-            ksort($data);
-            foreach ($data as $k => $v) {
-                $data[$k] = $this->normalizePayload($v);
-            }
-            return $data;
-        }
-        return $data;
-    }
-
-    /**
-     * Try to find a cached response by its request hash within the TTL window.
-     *
-     * @return array|null Returns the response_json payload or null.
-     */
-    private function findCachedResponse(string $requestHash): ?array
-    {
-        try {
-            $ttl = $this->getRequestCacheTtlSeconds();
-            if ($ttl <= 0) {
-                // Cache disabled by configuration
-                return null;
-            }
-
-            $minCreatedAt = time() - $ttl;
-
-            $record = AiRequest::find()
-                ->where(['request_hash' => $requestHash])
-                ->andWhere(['>=', 'created_at', $minCreatedAt])
-                ->orderBy(['id' => SORT_DESC])
-                ->one();
-
-            if ($record && !empty($record->response_json)) {
-                return is_array($record->response_json)
-                    ? $record->response_json
-                    : json_decode((string)$record->response_json, true);
-            }
-        } catch (\Throwable $e) {
-            Yii::error('Error while reading AiRequest cache: ' . $e->getMessage(), __METHOD__);
-        }
-
-        return null;
     }
 
     /**
@@ -353,26 +278,5 @@ class OpenAiComponent extends Component
         }
 
         return '';
-    }
-
-    /**
-     * Get request cache TTL (in seconds) from the AI module. Defaults to 24h (86400s).
-     */
-    private function getRequestCacheTtlSeconds(): int
-    {
-        $default = 86400;
-        try {
-            $module = Yii::$app->getModule('ai');
-            if ($module !== null && property_exists($module, 'requestCacheTtlSeconds')) {
-                $value = $module->requestCacheTtlSeconds;
-                if (is_numeric($value)) {
-                    return max(0, (int)$value);
-                }
-            }
-        } catch (\Throwable $e) {
-            Yii::warning('Unable to read requestCacheTtlSeconds from module: ' . $e->getMessage(), __METHOD__);
-        }
-
-        return $default;
     }
 }
